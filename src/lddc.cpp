@@ -683,7 +683,7 @@ std::shared_ptr<rclcpp::PublisherBase> Lddc::GetCurrentImuPublisher(uint8_t hand
     return private_imu_pub_[handle];
   } else {
     if (!global_imu_pub_) {
-      std::string topic_name("/imu/dataaa");
+      std::string topic_name("/imu/data_device");
       queue_size = queue_size * 8; // shared queue size is 256, for all lidars
       global_imu_pub_ = CreatePublisher(kLivoxImuMsg, topic_name, queue_size);
     }
@@ -703,3 +703,4 @@ void Lddc::CreateBagFile(const std::string &file_name) {
 }
 
 }  // namespace livox_ros
+
