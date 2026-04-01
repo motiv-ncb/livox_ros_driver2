@@ -100,6 +100,26 @@ else()
       set(LIVOX_LIDAR_SDK_LIBRARY "${_WS_SRC_DIR}/Livox-SDK2/build/sdk_core/liblivox_lidar_sdk_static.a")
     endif()
   endif()
+
+  # Last fallback: build sibling Livox-SDK2/sdk_core directly in this build.
+  if(NOT LIVOX_LIDAR_SDK_LIBRARY)
+    set(_LIVOX_SDK2_LOCAL_DIR "${_WS_SRC_DIR}/Livox-SDK2")
+    if(EXISTS "${_LIVOX_SDK2_LOCAL_DIR}/sdk_core/CMakeLists.txt")
+      add_subdirectory(
+        "${_LIVOX_SDK2_LOCAL_DIR}/sdk_core"
+        "${CMAKE_CURRENT_BINARY_DIR}/livox_sdk2_sdk_core"
+      )
+      if(TARGET livox_lidar_sdk_shared)
+        set(LIVOX_LIDAR_SDK_LIBRARY livox_lidar_sdk_shared)
+      elseif(TARGET livox_lidar_sdk_static)
+        set(LIVOX_LIDAR_SDK_LIBRARY livox_lidar_sdk_static)
+      endif()
+
+      if(EXISTS "${_LIVOX_SDK2_LOCAL_DIR}/include/livox_lidar_api.h")
+        set(LIVOX_LIDAR_SDK_INCLUDE_DIR "${_LIVOX_SDK2_LOCAL_DIR}/include")
+      endif()
+    endif()
+  endif()
 endif()
 
 if(NOT LIVOX_LIDAR_SDK_LIBRARY)
