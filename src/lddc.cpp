@@ -337,7 +337,8 @@ void Lddc::PublishPclData(const uint8_t index, const uint64_t timestamp, const P
   return;
 }
 
-void Lddc::InitImuMsg(const ImuData& imu_data, ImuMsg& imu_msg, uint64_t& timestamp, const std::string& frame_id) {
+void Lddc::InitImuMsg(const ImuData& imu_data, ImuMsg& imu_msg, uint64_t& timestamp,
+  const std::string& frame_id, const LidarDevice* lidar) {
   imu_msg.header.frame_id = frame_id;
 
   timestamp = imu_data.time_stamp;
@@ -387,7 +388,8 @@ void Lddc::InitImuMsg(const ImuData& imu_data, ImuMsg& imu_msg, uint64_t& timest
   imu_msg.linear_acceleration.z = az_r;
 }
 
-void Lddc::PublishImuData(LidarImuDataQueue& imu_data_queue, const uint8_t index, const std::string& frame_id) {
+void Lddc::PublishImuData(LidarImuDataQueue& imu_data_queue, const uint8_t index, const std::string& frame_id,
+  const LidarDevice* lidar) {
   ImuData imu_data;
   if (!imu_data_queue.Pop(imu_data)) {
     //printf("Publish imu data failed, imu data queue pop failed.\n");
@@ -396,7 +398,7 @@ void Lddc::PublishImuData(LidarImuDataQueue& imu_data_queue, const uint8_t index
 
   ImuMsg imu_msg;
   uint64_t timestamp;
-  InitImuMsg(imu_data, imu_msg, timestamp, frame_id);
+  InitImuMsg(imu_data, imu_msg, timestamp, frame_id, lidar);
 
   Publisher<ImuMsg>::SharedPtr publisher_ptr = std::dynamic_pointer_cast<Publisher<ImuMsg>>(GetCurrentImuPublisher(index));
 

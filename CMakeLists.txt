@@ -34,7 +34,6 @@ find_package(PCL REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-find_package(livox_sdk2 REQUIRED)
 
 # check apr
 find_package(PkgConfig)
@@ -53,13 +52,62 @@ rosidl_generate_interfaces(${LIVOX_INTERFACES}
   LIBRARY_NAME ${PROJECT_NAME}
 )
 
-## make sure the livox_lidar_sdk_shared library is installed
-find_library(LIVOX_LIDAR_SDK_LIBRARY liblivox_lidar_sdk_shared.so /usr/local/lib REQUIRED)
+# Prefer the ROS2 exported package when available.
+find_package(livox_sdk2 QUIET)
+set(LIVOX_LIDAR_SDK_LIBRARY "")
+set(LIVOX_LIDAR_SDK_INCLUDE_DIR "")
 
-##
-find_path(LIVOX_LIDAR_SDK_INCLUDE_DIR
-  NAMES "livox_lidar_api.h" "livox_lidar_def.h"
-  REQUIRED)
+if(TARGET livox_sdk2::livox_lidar_sdk_shared)
+  set(LIVOX_LIDAR_SDK_LIBRARY livox_sdk2::livox_lidar_sdk_shared)
+  if(DEFINED livox_sdk2_INCLUDE_DIRS)
+    set(LIVOX_LIDAR_SDK_INCLUDE_DIR ${livox_sdk2_INCLUDE_DIRS})
+  endif()
+else()
+  # Fallback for non-ament Livox-SDK2 installs (manual cmake/make install).
+  unset(LIVOX_LIDAR_SDK_INCLUDE_DIR CACHE)
+  unset(LIVOX_LIDAR_SDK_LIBRARY CACHE)
+
+  find_path(LIVOX_LIDAR_SDK_INCLUDE_DIR
+    NAMES livox_lidar_api.h
+    PATH_SUFFIXES include
+    PATHS
+      ${CMAKE_CURRENT_SOURCE_DIR}/../Livox-SDK2
+      /usr/local
+      /usr
+  )
+
+  find_library(LIVOX_LIDAR_SDK_LIBRARY
+    NAMES livox_lidar_sdk_shared
+    PATH_SUFFIXES lib lib64 build/sdk_core sdk_core
+    PATHS
+      ${CMAKE_CURRENT_SOURCE_DIR}/../Livox-SDK2
+      /usr/local
+      /usr
+  )
+
+  # Explicit workspace fallback: sibling Livox-SDK2 source tree.
+  get_filename_component(_WS_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+  if(NOT LIVOX_LIDAR_SDK_INCLUDE_DIR)
+    if(EXISTS "${_WS_SRC_DIR}/Livox-SDK2/include/livox_lidar_api.h")
+      set(LIVOX_LIDAR_SDK_INCLUDE_DIR "${_WS_SRC_DIR}/Livox-SDK2/include")
+    endif()
+  endif()
+
+  if(NOT LIVOX_LIDAR_SDK_LIBRARY)
+    if(EXISTS "${_WS_SRC_DIR}/Livox-SDK2/build/sdk_core/liblivox_lidar_sdk_shared.so")
+      set(LIVOX_LIDAR_SDK_LIBRARY "${_WS_SRC_DIR}/Livox-SDK2/build/sdk_core/liblivox_lidar_sdk_shared.so")
+    elseif(EXISTS "${_WS_SRC_DIR}/Livox-SDK2/build/sdk_core/liblivox_lidar_sdk_static.a")
+      set(LIVOX_LIDAR_SDK_LIBRARY "${_WS_SRC_DIR}/Livox-SDK2/build/sdk_core/liblivox_lidar_sdk_static.a")
+    endif()
+  endif()
+endif()
+
+if(NOT LIVOX_LIDAR_SDK_LIBRARY)
+  message(FATAL_ERROR
+    "Could not find Livox SDK2 library. Install the ROS2 fork that exports livox_sdk2 "
+    "or install Livox-SDK2 to /usr/local (liblivox_lidar_sdk_shared + headers)."
+  )
+endif()
 
 ## PCL library
 link_directories(${PCL_LIBRARY_DIRS})
@@ -86,8 +134,6 @@ ament_auto_add_library(${PROJECT_NAME} SHARED
   src/call_back/lidar_common_callback.cpp
   src/call_back/livox_lidar_callback.cpp
 )
-
-target_include_directories(${PROJECT_NAME} PRIVATE ${livox_sdk_INCLUDE_DIRS})
 
 # get include directories of custom msg headers
 rosidl_get_typesupport_target(cpp_typesupport_target
