@@ -87,7 +87,7 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options)
 
     std::string user_config_path;
     this->get_parameter("user_config_path", user_config_path);
-    DRIVER_INFO(*this, "Config file : %s", user_config_path.c_str());
+    DRIVER_INFO(*this, "Config file: %s", user_config_path.c_str());
 
     std::string cmdline_bd_code;
     this->get_parameter("cmdline_input_bd_code", cmdline_bd_code);

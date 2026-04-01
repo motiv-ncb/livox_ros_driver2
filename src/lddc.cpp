@@ -136,7 +136,7 @@ void Lddc::PollingLidarPointCloudData(uint8_t index, LidarDevice *lidar) {
 void Lddc::PollingLidarImuData(uint8_t index, LidarDevice *lidar) {
   LidarImuDataQueue& p_queue = lidar->imu_data;
   while (!lds_->IsRequestExit() && !p_queue.Empty()) {
-    PublishImuData(p_queue, index, lidar->livox_config.frame_id);
+    PublishImuData(p_queue, index, lidar->livox_config.frame_id, lidar);
   }
 }
 
@@ -343,12 +343,48 @@ void Lddc::InitImuMsg(const ImuData& imu_data, ImuMsg& imu_msg, uint64_t& timest
   timestamp = imu_data.time_stamp;
   imu_msg.header.stamp = rclcpp::Time(timestamp);  // to ros time stamp
 
-  imu_msg.angular_velocity.x = imu_data.gyro_x;
-  imu_msg.angular_velocity.y = imu_data.gyro_y;
-  imu_msg.angular_velocity.z = imu_data.gyro_z;
-  imu_msg.linear_acceleration.x = imu_data.acc_x;
-  imu_msg.linear_acceleration.y = imu_data.acc_y;
-  imu_msg.linear_acceleration.z = imu_data.acc_z;
+  const double G_TO_MS2 = 9.80665;
+ 
+  
+  const double DEG_TO_RAD = M_PI / 180.0;
+  
+  double roll = lidar->livox_config.extrinsic_param.roll * DEG_TO_RAD;
+  double pitch = lidar->livox_config.extrinsic_param.pitch * DEG_TO_RAD;
+  double yaw = lidar->livox_config.extrinsic_param.yaw * DEG_TO_RAD;
+  
+  double gx = imu_data.gyro_x;
+  double gy = imu_data.gyro_y;
+  double gz = imu_data.gyro_z;
+  
+  double gx_zy = gx * cos(yaw) - gy * sin(yaw);
+  double gy_zy = gx * sin(yaw) + gy * cos(yaw);
+  
+  double gx_p = gx_zy * cos(pitch) + gz * sin(pitch);
+  double gz_p = -gx_zy * sin(pitch) + gz * cos(pitch);
+  
+  double gy_r = gy_zy * cos(roll) - gz_p * sin(roll);
+  double gz_r = gy_zy * sin(roll) + gz_p * cos(roll);
+  
+  imu_msg.angular_velocity.x = gx_p;
+  imu_msg.angular_velocity.y = gy_r;
+  imu_msg.angular_velocity.z = gz_r;
+  
+  double ax = imu_data.acc_x * G_TO_MS2;
+  double ay = imu_data.acc_y * G_TO_MS2;
+  double az = imu_data.acc_z * G_TO_MS2;
+  
+  double ax_zy = ax * cos(yaw) - ay * sin(yaw);
+  double ay_zy = ax * sin(yaw) + ay * cos(yaw);
+  
+  double ax_p = ax_zy * cos(pitch) + az * sin(pitch);
+  double az_p = -ax_zy * sin(pitch) + az * cos(pitch);
+  
+  double ay_r = ay_zy * cos(roll) - az_p * sin(roll);
+  double az_r = ay_zy * sin(roll) + az_p * cos(roll);
+  
+  imu_msg.linear_acceleration.x = ax_p;
+  imu_msg.linear_acceleration.y = ay_r;
+  imu_msg.linear_acceleration.z = az_r;
 }
 
 void Lddc::PublishImuData(LidarImuDataQueue& imu_data_queue, const uint8_t index, const std::string& frame_id) {
@@ -406,9 +442,9 @@ std::shared_ptr<rclcpp::PublisherBase> Lddc::GetCurrentPublisher(uint8_t handle)
       char name_str[48];
       memset(name_str, 0, sizeof(name_str));
 
-      std::string ip_string = IpNumToString(lds_->lidars_[handle].handle);
-      snprintf(name_str, sizeof(name_str), "livox/lidar_%s",
-          ReplacePeriodByUnderline(ip_string).c_str());
+      std::string ld_name = lds_->lidars_[handle].livox_config.ld_name;
+      snprintf(name_str, sizeof(name_str), "livox/%s/points",
+          ReplacePeriodByUnderline(ld_name).c_str());
       std::string topic_name(name_str);
       queue_size = queue_size * 2; // queue size is 64 for only one lidar
       private_pub_[handle] = CreatePublisher(transfer_format_, topic_name, queue_size);
@@ -416,7 +452,7 @@ std::shared_ptr<rclcpp::PublisherBase> Lddc::GetCurrentPublisher(uint8_t handle)
     return private_pub_[handle];
   } else {
     if (!global_pub_) {
-      std::string topic_name("livox/lidar");
+      std::string topic_name("/lidar_points");
       queue_size = queue_size * 8; // shared queue size is 256, for all lidars
       global_pub_ = CreatePublisher(transfer_format_, topic_name, queue_size);
     }
@@ -430,9 +466,9 @@ std::shared_ptr<rclcpp::PublisherBase> Lddc::GetCurrentImuPublisher(uint8_t hand
     if (!private_imu_pub_[handle]) {
       char name_str[48];
       memset(name_str, 0, sizeof(name_str));
-      std::string ip_string = IpNumToString(lds_->lidars_[handle].handle);
-      snprintf(name_str, sizeof(name_str), "livox/imu_%s",
-          ReplacePeriodByUnderline(ip_string).c_str());
+      std::string ld_name = lds_->lidars_[handle].livox_config.ld_name;
+      snprintf(name_str, sizeof(name_str), "livox/%s/imu",
+          ReplacePeriodByUnderline(ld_name).c_str());
       std::string topic_name(name_str);
       queue_size = queue_size * 2; // queue size is 64 for only one lidar
       private_imu_pub_[handle] = CreatePublisher(kLivoxImuMsg, topic_name,
@@ -441,7 +477,7 @@ std::shared_ptr<rclcpp::PublisherBase> Lddc::GetCurrentImuPublisher(uint8_t hand
     return private_imu_pub_[handle];
   } else {
     if (!global_imu_pub_) {
-      std::string topic_name("livox/imu");
+      std::string topic_name("/imu/data_raw");
       queue_size = queue_size * 8; // shared queue size is 256, for all lidars
       global_imu_pub_ = CreatePublisher(kLivoxImuMsg, topic_name, queue_size);
     }
@@ -453,3 +489,4 @@ void Lddc::CreateBagFile(const std::string &file_name) {
 }
 
 }  // namespace livox_ros
+

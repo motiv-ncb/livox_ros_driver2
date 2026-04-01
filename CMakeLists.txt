@@ -34,6 +34,7 @@ find_package(PCL REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(livox_sdk2 REQUIRED)
 
 # check apr
 find_package(PkgConfig)
