@@ -4,14 +4,25 @@ cmake_minimum_required(VERSION 3.14)
 project(livox_ros_driver2)
 
 # Default to C99
-@@ -24,17 +24,21 @@ include(cmake/version.cmake)
+if(NOT CMAKE_C_STANDARD)
+  set(CMAKE_C_STANDARD 99)
+endif()
+
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
+
+list(INSERT CMAKE_MODULE_PATH 0 "${PROJECT_SOURCE_DIR}/cmake/modules")
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic -Wno-unused-parameter)
+endif()
+
+# Printf version info
+include(cmake/version.cmake)
 project(${PROJECT_NAME} VERSION ${LIVOX_ROS_DRIVER2_VERSION} LANGUAGES CXX)
 message(STATUS "${PROJECT_NAME} version: ${LIVOX_ROS_DRIVER2_VERSION}")
-
-
-
-
-
 
 # find dependencies
 # uncomment the following section in order to fill in
@@ -23,15 +34,21 @@ find_package(PCL REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-find_package(spdlog REQUIRED)
-find_package(fmt REQUIRED)
-
-
 
 # check apr
 find_package(PkgConfig)
 pkg_check_modules(APR apr-1)
-@@ -52,83 +56,6 @@ rosidl_generate_interfaces(${LIVOX_INTERFACES}
+if (APR_FOUND)
+  message(${APR_INCLUDE_DIRS})
+  message(${APR_LIBRARIES})
+endif (APR_FOUND)
+
+# generate custom msg headers
+set(LIVOX_INTERFACES livox_interfaces2)
+rosidl_generate_interfaces(${LIVOX_INTERFACES}
+  "msg/CustomPoint.msg"
+  "msg/CustomMsg.msg"
+  DEPENDENCIES builtin_interfaces std_msgs
   LIBRARY_NAME ${PROJECT_NAME}
 )
 
@@ -115,7 +132,35 @@ endif()
 ## PCL library
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
-@@ -164,20 +91,22 @@ target_link_libraries(${PROJECT_NAME} "${cpp_typesupport_target}")
+
+# livox ros2 driver target
+ament_auto_add_library(${PROJECT_NAME} SHARED
+  src/livox_ros_driver2.cpp
+  src/lddc.cpp
+  src/driver_node.cpp
+  src/lds.cpp
+  src/lds_lidar.cpp
+
+  src/comm/comm.cpp
+  src/comm/ldq.cpp
+  src/comm/semaphore.cpp
+  src/comm/lidar_imu_data_queue.cpp
+  src/comm/cache_index.cpp
+  src/comm/pub_handler.cpp
+
+  src/parse_cfg_file/parse_cfg_file.cpp
+  src/parse_cfg_file/parse_livox_lidar_cfg.cpp
+
+  src/call_back/lidar_common_callback.cpp
+  src/call_back/livox_lidar_callback.cpp
+)
+
+# get include directories of custom msg headers
+rosidl_get_typesupport_target(cpp_typesupport_target
+${LIVOX_INTERFACES} "rosidl_typesupport_cpp")
+target_link_libraries(${PROJECT_NAME} "${cpp_typesupport_target}")
+
+# include file direcotry
 target_include_directories(${PROJECT_NAME} PUBLIC
   ${PCL_INCLUDE_DIRS}
   ${APR_INCLUDE_DIRS}
@@ -133,13 +178,12 @@ target_link_libraries(${PROJECT_NAME}
   ${Boost_LIBRARY}
   ${PCL_LIBRARIES}
   ${APR_LIBRARIES}
-  spdlog::spdlog
-  fmt::fmt
-
 )
 
 rclcpp_components_register_node(${PROJECT_NAME}
-@@ -187,12 +116,6 @@ rclcpp_components_register_node(${PROJECT_NAME}
+  PLUGIN "livox_ros::DriverNode"
+  EXECUTABLE ${PROJECT_NAME}_node
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -151,3 +195,8 @@ if(BUILD_TESTING)
   #set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+
+ament_auto_package(INSTALL_TO_SHARE
+  config
+  launch
+)
