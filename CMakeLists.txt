@@ -37,7 +37,8 @@ find_package(std_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(livox_sdk2 REQUIRED)
-
+find_package(spdlog REQUIRED)
+find_package(fmt REQUIRED)
 # check apr
 find_package(PkgConfig)
 pkg_check_modules(APR apr-1)
@@ -99,11 +100,13 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 # link libraries
 target_link_libraries(${PROJECT_NAME}
   ${livox_sdk2_LIBRARIES}
-  ${LIVOX_INTERFACE_TARGET}   # for custom msgs
+  ${LIVOX_INTERFACE_TARGET}
   ${PPT_LIBRARY}
   ${Boost_LIBRARY}
   ${PCL_LIBRARIES}
   ${APR_LIBRARIES}
+  spdlog::spdlog
+  fmt::fmt
 )
 
 rclcpp_components_register_node(${PROJECT_NAME}
