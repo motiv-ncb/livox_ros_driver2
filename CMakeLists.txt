@@ -82,16 +82,10 @@ ament_auto_add_library(${PROJECT_NAME} SHARED
   src/call_back/livox_lidar_callback.cpp
 )
 
-  # get include directories of custom msg headers
-  if(DISTRO_ROS STREQUAL "humble" OR DISTRO_ROS STREQUAL "jazzy")
-    rosidl_get_typesupport_target(cpp_typesupport_target
-    ${LIVOX_INTERFACES} "rosidl_typesupport_cpp")
-    target_link_libraries(${PROJECT_NAME} "${cpp_typesupport_target}")
-  else()
-    set(LIVOX_INTERFACE_TARGET "${LIVOX_INTERFACES}__rosidl_typesupport_cpp")
-    add_dependencies(${PROJECT_NAME} ${LIVOX_INTERFACES})
-    get_target_property(LIVOX_INTERFACES_INCLUDE_DIRECTORIES ${LIVOX_INTERFACE_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
-  endif()
+# get include directories of custom msg headers
+rosidl_get_typesupport_target(cpp_typesupport_target
+${LIVOX_INTERFACES} "rosidl_typesupport_cpp")
+target_link_libraries(${PROJECT_NAME} "${cpp_typesupport_target}")
 
 # include file direcotry
 target_include_directories(${PROJECT_NAME} PUBLIC
